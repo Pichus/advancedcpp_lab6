@@ -10,20 +10,30 @@ class Player {
     struct promise_type;
     using handle = std::coroutine_handle<promise_type>;
 
+    struct PromiseResultType {
+        int target;
+        int action_number;
+        std::optional<int> player_id;
+    };
+
+    struct ResponseTag {};
+
+    enum class PromiseResponseType { Invalid, Accepted, Win };
+
     bool in_progress() const { return coro && !coro.done(); }
 
     bool move_next() {
         return in_progress() ? (coro.resume(), !coro.done()) : false;
     }
 
-    int current_value_safety() const {
+    PromiseResultType current_value_safety() const {
         if (!coro) throw std::runtime_error("coroutine is destroyed");
         return coro.promise().result;
     }
 
-    void set_response(int r) {
+    void set_response(PromiseResponseType response) {
         if (!coro) throw std::runtime_error("coroutine is destroyed");
-        coro.promise().response = r;
+        coro.promise().response = response;
     }
 
     operator bool() const noexcept { return static_cast<bool>(coro); }
@@ -33,30 +43,30 @@ class Player {
         explicit Awaiter(promise_type& p) : p(p) {}
         bool await_ready() const noexcept { return true; }
         bool await_suspend(std::coroutine_handle<>) noexcept { return false; }
-        int await_resume() noexcept { return p.response; }
+        PromiseResponseType await_resume() noexcept { return p.response; }
 
        private:
         promise_type& p;
     };
 
     struct promise_type {
-        int result = 0;
-        int response = 0;
+        PromiseResultType result{};
+        PromiseResponseType response{};
 
         void unhandled_exception() { std::terminate(); }
         auto initial_suspend() { return std::suspend_never{}; }
         auto final_suspend() noexcept { return std::suspend_always{}; }
 
-        auto yield_value(int value) {
+        auto yield_value(PromiseResultType value) {
             result = value;
             return std::suspend_always{};
         }
 
-        void return_value(int value) { result = value; }
+        void return_value(PromiseResultType value) { result = value; }
 
         auto get_return_object() { return Player{handle::from_promise(*this)}; }
 
-        Awaiter await_transform(int) { return Awaiter{*this}; }
+        Awaiter await_transform(ResponseTag) { return Awaiter{*this}; }
     };
 
     Player(Player const&) = delete;
@@ -80,7 +90,5 @@ class Player {
     explicit Player(handle h) : coro(h) {}
     handle coro = nullptr;
 };
-
-Player play_guess_the_number(const std::string& question);
 
 #endif  // ADVANCEDCPP_LAB6_PLAYER_H
