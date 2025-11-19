@@ -2,6 +2,7 @@
 #define ADVANCEDCPP_LAB6_PLAYER_H
 
 #include <coroutine>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -11,14 +12,20 @@ class Player {
     using handle = std::coroutine_handle<promise_type>;
 
     struct PromiseResultType {
-        int target;
+        int which_number;
         int action_number;
         std::optional<int> player_id;
     };
 
     struct ResponseTag {};
 
-    enum class PromiseResponseType { Invalid, Accepted, Win };
+    enum class PromiseResponseStatus { Invalid, Accepted, Win };
+
+    struct PromiseResponseType {
+        PromiseResponseStatus status;
+        int number1;
+        int number2;
+    };
 
     bool in_progress() const { return coro && !coro.done(); }
 
@@ -31,9 +38,9 @@ class Player {
         return coro.promise().result;
     }
 
-    void set_response(PromiseResponseType response) {
+    void set_response(PromiseResponseType new_response) {
         if (!coro) throw std::runtime_error("coroutine is destroyed");
-        coro.promise().response = response;
+        coro.promise().response = new_response;
     }
 
     operator bool() const noexcept { return static_cast<bool>(coro); }
@@ -90,5 +97,13 @@ class Player {
     explicit Player(handle h) : coro(h) {}
     handle coro = nullptr;
 };
+
+enum class Action {
+    IncrementNumber = 0,
+    MultiplyNumberBy2 = 1,
+    DivideNumberBy3 = 2
+};
+
+Player CreatePlayer(int player_id, int initial_number1, int initial_number2);
 
 #endif  // ADVANCEDCPP_LAB6_PLAYER_H
